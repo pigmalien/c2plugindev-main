@@ -1,4 +1,4 @@
-﻿function GetBehaviorSettings()
+﻿﻿function GetBehaviorSettings()
 {
 	return {
 		"name":			"Field Swarm", // Updated name
@@ -29,7 +29,7 @@ AddNumberParam("Target X", "The X coordinate (pixels) of the target.", "0");
 AddNumberParam("Target Y", "The Y coordinate (pixels) of the target.", "0");
 AddAction(2, af_none, "Find path to", "Pathfinding", "Find path to ({0}, {1})", "Calculates a path using A*.", "FindPath");
 
-// ACT 5: Start moving
+// ACT 3: Start moving
 AddAction(3, af_none, "Move along path", "Movement", "Start moving along current path", "Begins movement toward the target.", "MoveAlongPath");
 
 // ACT 4: Add Wall Obstacle

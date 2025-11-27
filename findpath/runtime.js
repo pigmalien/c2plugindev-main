@@ -57,10 +57,6 @@ cr.behaviors.FieldSwarm = function(runtime)
 
 		// This will be populated by the 'AddWallObstacle' action
 		this.wallObjectTypes = [];
-		
-		// A* Lists
-		this.openList = [];
-		this.closedList = {};
 	};
 
 	behaviorInstProto.onDestroy = function ()
@@ -89,16 +85,11 @@ cr.behaviors.FieldSwarm = function(runtime)
 		return gridY * this.cellHeight + (this.cellHeight / 2);
 	};
 	
-	// Check if a grid cell is marked as a wall
-	behaviorInstProto.isWall = function(gridX, gridY) {
-		return !!this.pathfindingGridMap[gridX + "," + gridY];
-	};
-	
 	////////////////////////////////////////////////////////////////
 	// A* PATHFINDING ALGORITHM (Simplified Heuristic)
 	////////////////////////////////////////////////////////////////
 
-	behaviorInstProto.AStarPathfinding = function(startX, startY, endX, endY)
+	behaviorInstProto.AStarPathfinding = function(startX, startY, endX, endY, wallMap)
 	{
 		// Node structure used in A*
 		var Node = function(x, y, parent) {
@@ -110,35 +101,50 @@ cr.behaviors.FieldSwarm = function(runtime)
 			this.f = 0; // g + h
 			this.key = x + "," + y;
 		};
+
+		// Local isWall check using the provided map
+		var isWall = function(gridX, gridY) {
+			return !!wallMap[gridX + "," + gridY];
+		};
 		
 		var gridStart = new Node(startX, startY, null);
 		var gridEnd = new Node(endX, endY, null);
 		
-		this.openList = [gridStart];
-		this.closedList = {};
+		var openList = [gridStart];
+		var closedList = {};
 
 		// Heuristic function (Manhattan distance)
-		var heuristic = function(node, endNode) {
-			return Math.abs(node.x - endNode.x) + Math.abs(node.y - endNode.y);
+		// Using Diagonal Distance heuristic, which is more appropriate for 8-directional movement.
+		var heuristic = function(node, endNode) {			
+			var D = 10; // Cost of straight movement
+			var D2 = 14; // Cost of diagonal movement
+			var dx = Math.abs(node.x - endNode.x);
+			var dy = Math.abs(node.y - endNode.y);
+			return D * (dx + dy) + (D2 - 2 * D) * Math.min(dx, dy); // Octile distance
 		};
 		
 		gridStart.h = heuristic(gridStart, gridEnd);
 		gridStart.f = gridStart.g + gridStart.h;
 
-		while (this.openList.length > 0)
+		var max_iterations = 15000; // Safeguard against extreme cases
+		var iterations = 0;
+
+		while (openList.length > 0 && iterations < max_iterations)
 		{
+			iterations++;
+
 			// Find the node with the lowest F score in the open list
-			var currentNode = this.openList[0];
+			var currentNode = openList[0];
 			var currentIndex = 0;
-			for(var i = 1; i < this.openList.length; i++) {
-				if (this.openList[i].f < currentNode.f) {
-					currentNode = this.openList[i];
+			for(var i = 1; i < openList.length; i++) {
+				if (openList[i].f < currentNode.f) {
+					currentNode = openList[i];
 					currentIndex = i;
 				}
 			}
 			
-			this.openList.splice(currentIndex, 1);
-			this.closedList[currentNode.key] = true;
+			openList.splice(currentIndex, 1);
+			closedList[currentNode.key] = true;
 			
 			// Goal Check
 			if (currentNode.x === gridEnd.x && currentNode.y === gridEnd.y) {
@@ -168,45 +174,45 @@ cr.behaviors.FieldSwarm = function(runtime)
 				var neighbor = neighbors[i];
 				var nKey = neighbor.x + "," + neighbor.y;
 
-				if (this.isWall(neighbor.x, neighbor.y) || this.closedList[nKey]) {
+				if (isWall(neighbor.x, neighbor.y) || closedList[nKey]) {
 					continue;
 				}
-				
+
 				// --- FIX START: Prevent cutting corners ---
 				// If moving diagonally, check if the adjacent cardinal cells are walls.
-				if (neighbor.isDiagonal) {
-					if (this.isWall(currentNode.x, neighbor.y) || this.isWall(neighbor.x, currentNode.y)) {
-						continue;
-					}
+				if (neighbor.isDiagonal && (isWall(currentNode.x, neighbor.y) || isWall(neighbor.x, currentNode.y))) {
+					continue;
 				}
 				// --- FIX END ---
-				
+
 				// Base cost is 1 for straight, ~1.4 for diagonal
-				var base_cost = (neighbor.isDiagonal ? 1.414 : 1);
-				
+				var base_cost = (neighbor.isDiagonal ? 14 : 10);
 				var tentative_gScore = currentNode.g + base_cost;
-				
+
+				// Find neighbor in open list
 				var neighborNode = null;
-				for(var j = 0; j < this.openList.length; j++) {
-					if (this.openList[j].key === nKey) {
-						neighborNode = this.openList[j];
+				for(var j = 0; j < openList.length; j++)
+				{
+					if(openList[j].key === nKey) {
+						neighborNode = openList[j];
 						break;
 					}
 				}
 
-				if (neighborNode === null) {
+				if (neighborNode) { // Node is already in the open list
+					if (tentative_gScore < neighborNode.g) { // A better path has been found
+						// Update the node's scores and parent
+						neighborNode.parent = currentNode;
+						neighborNode.g = tentative_gScore;
+						neighborNode.f = neighborNode.g + neighborNode.h; // h is already calculated
+					}
+				} else { // Node is not in the open list
 					// New node found: calculate scores and add to open list
 					neighborNode = new Node(neighbor.x, neighbor.y, currentNode);
 					neighborNode.g = tentative_gScore;
 					neighborNode.h = heuristic(neighborNode, gridEnd);
 					neighborNode.f = neighborNode.g + neighborNode.h;
-					this.openList.push(neighborNode);
-				} 
-				else if (tentative_gScore < neighborNode.g) {
-					// Found a better path to this node
-					neighborNode.parent = currentNode;
-					neighborNode.g = tentative_gScore;
-					neighborNode.f = neighborNode.g + neighborNode.h;
+					openList.push(neighborNode); // Add to open list
 				}
 			}
 		}
@@ -222,7 +228,7 @@ cr.behaviors.FieldSwarm = function(runtime)
 	{
 		var dt = this.runtime.getDt(this.inst);
 
-		if (!this.isMoving || this.path.length === 0 || dt === 0) return;
+		if (!this.isMoving || !this.path || this.path.length === 0 || dt === 0) return;
 
 		// Movement logic remains the same (smooth transition between cell centers)
 		var target = this.path[this.pathIndex];
@@ -301,7 +307,7 @@ cr.behaviors.FieldSwarm = function(runtime)
 		var endGridY = this.toGridY(pixelY);
 		
 		// Bake wall objects into a temporary grid map for this pathfinding request
-		this.pathfindingGridMap = {};
+		var pathfindingGridMap = {};
 		for (var i = 0; i < this.wallObjectTypes.length; i++) {
 			var wallType = this.wallObjectTypes[i];
 			var wallInstances = wallType.instances;
@@ -309,7 +315,7 @@ cr.behaviors.FieldSwarm = function(runtime)
 				var wallInst = wallInstances[j];
 				var gridX = this.toGridX(wallInst.x);
 				var gridY = this.toGridY(wallInst.y);
-				this.pathfindingGridMap[gridX + "," + gridY] = true;
+				pathfindingGridMap[gridX + "," + gridY] = true;
 			}
 		}
 
@@ -320,7 +326,7 @@ cr.behaviors.FieldSwarm = function(runtime)
 			return;
 		}
 
-		this.path = this.AStarPathfinding(startGridX, startGridY, endGridX, endGridY);
+		this.path = this.AStarPathfinding(startGridX, startGridY, endGridX, endGridY, pathfindingGridMap);
 		
 		if (this.path && this.path.length > 0)
 		{
@@ -328,14 +334,14 @@ cr.behaviors.FieldSwarm = function(runtime)
 		}
 		else
 		{
-			this.path = [];
+			this.path = null;
 			this.runtime.trigger(cr.behaviors.FieldSwarm.prototype.cnds.OnPathFailed, this.inst);
 		}
 	};
 	
 	Acts.prototype.MoveAlongPath = function ()
 	{
-		if (this.path.length === 0) return;
+		if (!this.path || this.path.length === 0) return;
 		
 		this.isMoving = true;
 		this.pathIndex = 0;
