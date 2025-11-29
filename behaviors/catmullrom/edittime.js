@@ -69,6 +69,9 @@ AddExpression(0, ef_return_number, "Current path time (T)", "Control", "CurrentT
 // EXP 1: Total Points in Path
 AddExpression(1, ef_return_number, "Total points in path", "Path Management", "TotalPoints", "Returns the number of points currently in the stack.");
 
+// EXP 2: Angle of Motion
+AddExpression(2, ef_return_number, "AngleOfMotion", "Movement", "AngleOfMotion", "Get the current angle of movement along the spline in degrees.");
+
 
 ACESDone();
 

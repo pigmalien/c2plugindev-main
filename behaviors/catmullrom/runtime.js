@@ -357,6 +357,27 @@ cr.behaviors.SplineMover = function(runtime)
         ret.set_int(this.pointStack.length);
     };
 
+    // EXP 2: Angle of Motion
+    Exps.prototype.AngleOfMotion = function (ret)
+    {
+        if (!this.isMoving || this.pathLength <= 0)
+        {
+            ret.set_float(cr.to_degrees(this.inst.angle));
+            return;
+        }
+
+        // Get position slightly ahead of the current position
+        var futureDistance = this.distanceTraveled + 1; // 1 pixel ahead
+        var futureT = this.getTforDistance(futureDistance);
+        var futurePos = this.getSplinePosition(futureT);
+
+        // Calculate angle from current position to future position
+        var angle = cr.angleTo(this.inst.x, this.inst.y, futurePos.x, futurePos.y);
+
+        ret.set_float(cr.to_degrees(angle));
+    };
+
+
 	behaviorProto.exps = new Exps();
 
 }());
