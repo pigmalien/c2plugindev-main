@@ -300,18 +300,36 @@ cr.behaviors.FollowPath = function(runtime)
 
 				// Only apply quadratic curve if rounding is enabled and we have enough points for a curve
 				if (this.rounding > 0 && this.path.length > 2) {
-					// To create a curve from p1 to p2, we need p0, p1, p2, and p3 (for the next segment)
-					// We will create a curve from the midpoint of p0-p1 to the midpoint of p1-p2, with p1 as the control point.
-					var p3 = (i < this.path.length - 2) ? this.path[i+2] : p2;
+					var startX, startY, endX, endY, controlX, controlY;
+
+					controlX = p1.x;
+					controlY = p1.y;
 					
-					var startX = cr.lerp(p0.x, p1.x, 0.5);
-					var startY = cr.lerp(p0.y, p1.y, 0.5);
-					var endX = cr.lerp(p1.x, p2.x, 0.5);
-					var endY = cr.lerp(p1.y, p2.y, 0.5);
+					// First segment: from the start node to the midpoint of the next segment
+					if (i === 0) {
+						startX = p1.x;
+						startY = p1.y;
+						endX = cr.lerp(p1.x, p2.x, 0.5);
+						endY = cr.lerp(p1.y, p2.y, 0.5);
+					} 
+					// Last segment: from the midpoint of the previous segment to the end node
+					else if (i === this.path.length - 2) {
+						startX = cr.lerp(p0.x, p1.x, 0.5);
+						startY = cr.lerp(p0.y, p1.y, 0.5);
+						endX = p2.x;
+						endY = p2.y;
+					}
+					// Middle segments: from midpoint to midpoint
+					else {
+						startX = cr.lerp(p0.x, p1.x, 0.5);
+						startY = cr.lerp(p0.y, p1.y, 0.5);
+						endX = cr.lerp(p1.x, p2.x, 0.5);
+						endY = cr.lerp(p1.y, p2.y, 0.5);
+					}
 					
 					// Quadratic Bezier from start to end with p1 as control
-					var bez_x = Math.pow(1-t, 2) * startX + 2 * (1-t) * t * p1.x + Math.pow(t, 2) * endX;
-					var bez_y = Math.pow(1-t, 2) * startY + 2 * (1-t) * t * p1.y + Math.pow(t, 2) * endY;
+					var bez_x = Math.pow(1-t, 2) * startX + 2 * (1-t) * t * controlX + Math.pow(t, 2) * endX;
+					var bez_y = Math.pow(1-t, 2) * startY + 2 * (1-t) * t * controlY + Math.pow(t, 2) * endY;
 					curPos = { x: bez_x, y: bez_y };
 				} else {
 					// Linear interpolation for sharp corners
@@ -374,6 +392,23 @@ cr.behaviors.FollowPath = function(runtime)
 	Exps.prototype.CurrentNode = function (ret)
 	{
 		ret.set_int(this.currentNode);
+	};
+	
+	Exps.prototype.AngleOfMotion = function (ret)
+	{
+		if (!this.active || this.pathLength === 0)
+		{
+			ret.set_float(cr.to_degrees(this.inst.angle));
+			return;
+		}
+
+		// Get position slightly ahead of the current position
+		var futureDistance = this.distanceTraveled + 1; // 1 pixel ahead
+		var futurePos = this.getPositionAtDistance(futureDistance);
+
+		// Calculate angle from current position to future position
+		var angle = cr.angleTo(this.inst.x, this.inst.y, futurePos.x, futurePos.y);
+		ret.set_float(cr.to_degrees(angle));
 	};
 	
 	behaviorProto.exps = new Exps();

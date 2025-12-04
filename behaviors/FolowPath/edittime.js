@@ -82,6 +82,7 @@ AddAction(7, af_none, "Set corner rounding", "Path", "Set corner rounding to {0}
 AddExpression(0, ef_return_number, "CurrentSpeed", "Path", "CurrentSpeed", "The current speed of the object in pixels per second.");
 AddExpression(1, ef_return_number, "PathNodeCount", "Path", "PathNodeCount", "The total number of nodes in the current path.");
 AddExpression(2, ef_return_number, "CurrentNode", "Path", "CurrentNode", "The index of the current target node in the path.");
+AddExpression(3, ef_return_number, "AngleOfMotion", "Path", "AngleOfMotion", "The current angle of motion in degrees.");
 
 ////////////////////////////////////////
 ACESDone();
