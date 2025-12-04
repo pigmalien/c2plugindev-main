@@ -58,8 +58,7 @@ AddAction(0, af_none, "Add node", "Path", "Add node at ({0}, {1})", "Add a new n
 
 AddAction(1, af_none, "Clear path", "Path", "Clear path", "Remove all nodes from the path.", "ClearPath");
 
-AddNumberParam("Speed", "The speed of movement, in pixels per second.", "100");
-AddAction(2, af_none, "Start path", "Path", "Start moving at {0} pixels/second", "Start moving along the defined path.", "StartPath");
+AddAction(2, af_none, "Start path", "Path", "Start moving", "Start moving along the defined path using the current speed property.", "StartPath");
 
 AddAction(3, af_none, "Stop", "Path", "Stop", "Stop the object's movement.", "Stop");
 
@@ -71,6 +70,9 @@ AddAction(5, af_none, "Set acceleration", "Path", "Set acceleration to {0}", "Se
 
 AddNumberParam("Deceleration", "The new deceleration to set, in pixels per second per second.", "0");
 AddAction(6, af_none, "Set deceleration", "Path", "Set deceleration to {0}", "Set the object's deceleration.", "SetDeceleration");
+
+AddNumberParam("Rounding", "The distance from a node to begin rounding the corner, in pixels.", "0");
+AddAction(7, af_none, "Set corner rounding", "Path", "Set corner rounding to {0}", "Set the distance from a node to begin rounding the corner.", "SetRounding");
 
 ////////////////////////////////////////
 // Expressions
@@ -94,7 +96,8 @@ ACESDone();
 var property_list = [
 	new cr.Property(ept_float, "Speed", 100, "The speed of movement, in pixels per second."),
 	new cr.Property(ept_float, "Acceleration", 0, "The acceleration, in pixels per second per second."),
-	new cr.Property(ept_float, "Deceleration", 0, "The deceleration, in pixels per second per second.")
+	new cr.Property(ept_float, "Deceleration", 0, "The deceleration, in pixels per second per second."),
+	new cr.Property(ept_float, "Corner rounding", 0, "Distance from a node to begin rounding the corner. 0 for sharp corners.")
 	];
 	
 // Called by IDE when a new behavior type is to be created

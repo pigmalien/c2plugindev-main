@@ -50,6 +50,7 @@ cr.behaviors.FollowPath = function(runtime)
 		this.speed = this.properties[0];
 		this.accel = this.properties[1];
 		this.decel = this.properties[2];
+		this.rounding = this.properties[3];
 
 		// Behavior state
 		this.active = false;
@@ -57,6 +58,12 @@ cr.behaviors.FollowPath = function(runtime)
 		this.currentNode = 0;
 		this.currentSpeed = 0;
 		this.targetSpeed = 0;
+
+		// State for pre-calculated curve path
+		this.bakedPath = [];
+		this.pathLength = 0;
+		this.distanceTraveled = 0;
+		this.bakeQuality = 100; // Segments per node pair
 	};
 	
 	behinstProto.onDestroy = function ()
@@ -76,11 +83,15 @@ cr.behaviors.FollowPath = function(runtime)
 			"s": this.speed,
 			"a": this.accel,
 			"d": this.decel,
+			"r": this.rounding,
 			"act": this.active,
 			"path": this.path,
 			"cn": this.currentNode,
 			"cs": this.currentSpeed,
-			"ts": this.targetSpeed
+			"ts": this.targetSpeed,
+			"bp": this.bakedPath,
+			"pl": this.pathLength,
+			"dt": this.distanceTraveled
 		};
 	};
 	
@@ -91,11 +102,15 @@ cr.behaviors.FollowPath = function(runtime)
 		this.speed = o["s"];
 		this.accel = o["a"];
 		this.decel = o["d"];
+		this.rounding = o["r"];
 		this.active = o["act"];
 		this.path = o["path"];
 		this.currentNode = o["cn"];
 		this.currentSpeed = o["cs"];
 		this.targetSpeed = o["ts"];
+		this.bakedPath = o["bp"] || [];
+		this.pathLength = o["pl"] || 0;
+		this.distanceTraveled = o["dt"] || 0;
 	};
 
 	behinstProto.tick = function ()
@@ -114,68 +129,66 @@ cr.behaviors.FollowPath = function(runtime)
 			// else (this.currentSpeed === this.targetSpeed), do nothing
 		}
 
-		// If approaching the final node and deceleration is enabled,
-		// calculate the speed required to stop at the destination.
-		if (this.active && this.decel > 0 && this.currentNode === this.path.length - 1)
+		// Correct deceleration logic for a baked path
+		if (this.active && this.decel > 0)
 		{
-			var finalNode = this.path[this.currentNode];
-			var dx = finalNode.x - this.inst.x;
-			var dy = finalNode.y - this.inst.y;
-			var distToEnd = Math.sqrt(dx * dx + dy * dy);
+			// v^2 = u^2 + 2as  =>  0 = u^2 - 2as  =>  u = sqrt(2as)
+			// where u is speed, a is decel, s is distance remaining
+			var distRemaining = this.pathLength - this.distanceTraveled;
+			var requiredSpeed = Math.sqrt(2 * this.decel * distRemaining);
 			
-			// v = sqrt(2ad)
-			var requiredSpeed = Math.sqrt(2 * this.decel * distToEnd);
-			this.currentSpeed = Math.min(this.currentSpeed, requiredSpeed);
+			if (this.currentSpeed > requiredSpeed)
+				this.currentSpeed = requiredSpeed;
 		}
+
 
 		if (!this.active || this.currentSpeed === 0)
 			return;
 
-		var inst = this.inst;
-		var moveDist = this.currentSpeed * dt;
+		this.distanceTraveled += this.currentSpeed * dt;
 
-		// Loop while there is distance to move and we are active on a path
-		while (moveDist > 0 && this.active) {
-			if (this.currentNode >= this.path.length) {
-				this.active = false;
-				this.currentSpeed = 0;
-				this.targetSpeed = 0;
-				this.runtime.trigger(cr.behaviors.FollowPath.prototype.cnds.OnPathFinished, this.inst);
-				break;
+		if (this.distanceTraveled >= this.pathLength) {
+			// Path finished
+			this.distanceTraveled = this.pathLength;
+			var finalBakedPoint = this.bakedPath[this.bakedPath.length - 1];
+			if (finalBakedPoint) {
+				this.inst.x = finalBakedPoint.x;
+				this.inst.y = finalBakedPoint.y;
 			}
-
-			var targetNode = this.path[this.currentNode];
-			var dx = targetNode.x - inst.x;
-			var dy = targetNode.y - inst.y;
-			var distToTarget = Math.sqrt(dx * dx + dy * dy);
-
-			// If we are at or past the node, advance to the next one
-			if (distToTarget < moveDist) {
-				moveDist -= distToTarget;
-				inst.x = targetNode.x;
-				inst.y = targetNode.y;
-				this.currentNode++;
-				continue; // Restart loop for the next node
-			}
-
-			// --- Movement Logic ---
-			var final_mag = distToTarget; // Using distToTarget as magnitude
-			var final_dx = 0;
-			var final_dy = 0;
-			if (final_mag > 0) {
-				final_dx = (dx / final_mag) * moveDist;
-				final_dy = (dy / final_mag) * moveDist;
-				inst.x += final_dx;
-				inst.y += final_dy;
-			}
-
-			moveDist = 0; // All distance for this tick has been used
+			this.active = false;
+			this.currentSpeed = 0;
+			this.targetSpeed = 0;
+			this.runtime.trigger(cr.behaviors.FollowPath.prototype.cnds.OnPathFinished, this.inst);
+		} else {
+			// Find position on the baked path
+			var pos = this.getPositionAtDistance(this.distanceTraveled);
+			this.inst.x = pos.x;
+			this.inst.y = pos.y;
+			
+			// Update currentNode for expression, purely for user feedback
+			this.currentNode = Math.floor(pos.nodeIndex);
 		}
+
+		var inst = this.inst;
 		inst.set_bbox_changed();
 	};
 	
-	// The comments around these functions ensure they are removed when exporting, since the
-	// debugger code is no longer relevant after publishing.
+	// Helper to get position on the pre-calculated path
+	behinstProto.getPositionAtDistance = function(dist) {
+		if (this.bakedPath.length < 2) return {x: this.inst.x, y: this.inst.y, nodeIndex: 0};
+		
+		for (var i = 1; i < this.bakedPath.length; i++) {
+			if (this.bakedPath[i].dist >= dist) {
+				var p1 = this.bakedPath[i-1];
+				var p2 = this.bakedPath[i];
+				var t = (dist - p1.dist) / (p2.dist - p1.dist);
+				return { x: cr.lerp(p1.x, p2.x, t), y: cr.lerp(p1.y, p2.y, t), nodeIndex: p1.nodeIndex + t };
+			}
+		}
+		var last = this.bakedPath[this.bakedPath.length - 1];
+		return { x: last.x, y: last.y, nodeIndex: last.nodeIndex };
+	};
+
 	/**BEGIN-PREVIEWONLY**/
 	behinstProto.getDebuggerValues = function (propsections)
 	{
@@ -191,6 +204,7 @@ cr.behaviors.FollowPath = function(runtime)
 				{"name": "Current Speed", "value": this.currentSpeed, "readonly": true},
 				{"name": "Acceleration", "value": this.accel},
 				{"name": "Deceleration", "value": this.decel},
+				{"name": "Corner Rounding", "value": this.rounding},
 				{"name": "Path nodes", "value": this.path.length, "readonly": true},
 				{"name": "Current node", "value": this.currentNode, "readonly": true}
 			]
@@ -208,6 +222,8 @@ cr.behaviors.FollowPath = function(runtime)
 			this.accel = value;
 		else if (name === "Deceleration")
 			this.decel = value;
+		else if (name === "Corner Rounding")
+			this.rounding = value;
 	};
 	/**END-PREVIEWONLY**/
 
@@ -238,18 +254,76 @@ cr.behaviors.FollowPath = function(runtime)
 		this.targetSpeed = 0;
 	};
 
-	Acts.prototype.StartPath = function (speed)
+	Acts.prototype.StartPath = function ()
 	{
 		if (this.path.length < 1)
 			return;
-			
+		
+		this.bakePath(); // Pre-calculate the full path
+
+		this.distanceTraveled = 0;
 		this.active = true;
 		this.currentNode = 0;
-		this.targetSpeed = speed;
+		this.targetSpeed = this.speed;
 
 		// If no acceleration, start at full speed immediately
 		if (this.accel === 0)
-			this.currentSpeed = speed;
+			this.currentSpeed = this.speed;
+		else
+			this.currentSpeed = 0; // Always start from 0 if accelerating
+		
+		// Snap to start of path
+		if (this.bakedPath.length > 0) {
+			this.inst.x = this.bakedPath[0].x;
+			this.inst.y = this.bakedPath[0].y;
+		}
+	};
+
+	// Path baking function
+	behinstProto.bakePath = function() {
+		this.bakedPath = [];
+		this.pathLength = 0;
+		if (this.path.length < 1) return;
+
+		var totalDist = 0;
+		var lastPos = this.path[0];
+		this.bakedPath.push({x: lastPos.x, y: lastPos.y, dist: 0, nodeIndex: 0});
+
+		for (var i = 0; i < this.path.length - 1; i++) {
+			var p0 = (i > 0) ? this.path[i-1] : this.path[i];
+			var p1 = this.path[i];
+			var p2 = this.path[i+1];
+			
+			for (var j = 1; j <= this.bakeQuality; j++) {
+				var t = j / this.bakeQuality;
+				var curPos;
+
+				// Only apply quadratic curve if rounding is enabled and we have enough points for a curve
+				if (this.rounding > 0 && this.path.length > 2) {
+					// To create a curve from p1 to p2, we need p0, p1, p2, and p3 (for the next segment)
+					// We will create a curve from the midpoint of p0-p1 to the midpoint of p1-p2, with p1 as the control point.
+					var p3 = (i < this.path.length - 2) ? this.path[i+2] : p2;
+					
+					var startX = cr.lerp(p0.x, p1.x, 0.5);
+					var startY = cr.lerp(p0.y, p1.y, 0.5);
+					var endX = cr.lerp(p1.x, p2.x, 0.5);
+					var endY = cr.lerp(p1.y, p2.y, 0.5);
+					
+					// Quadratic Bezier from start to end with p1 as control
+					var bez_x = Math.pow(1-t, 2) * startX + 2 * (1-t) * t * p1.x + Math.pow(t, 2) * endX;
+					var bez_y = Math.pow(1-t, 2) * startY + 2 * (1-t) * t * p1.y + Math.pow(t, 2) * endY;
+					curPos = { x: bez_x, y: bez_y };
+				} else {
+					// Linear interpolation for sharp corners
+					curPos = { x: cr.lerp(p1.x, p2.x, t), y: cr.lerp(p1.y, p2.y, t) };
+				}
+
+				totalDist += cr.distanceTo(lastPos.x, lastPos.y, curPos.x, curPos.y);
+				this.bakedPath.push({x: curPos.x, y: curPos.y, dist: totalDist, nodeIndex: i + t});
+				lastPos = curPos;
+			}
+		}
+		this.pathLength = totalDist;
 	};
 
 	Acts.prototype.Stop = function ()
@@ -274,6 +348,11 @@ cr.behaviors.FollowPath = function(runtime)
 	Acts.prototype.SetDeceleration = function (d)
 	{
 		this.decel = d;
+	};
+
+	Acts.prototype.SetRounding = function (r)
+	{
+		this.rounding = r;
 	};
 	
 	behaviorProto.acts = new Acts();
