@@ -90,6 +90,7 @@ var property_list = [
 	new cr.Property(ept_combo,	"Initial state",	"Active",		"Set whether the behavior is initially active or inactive.", "Active|Inactive"),
 	new cr.Property(ept_float, 	"Max speed",		120,	"The maximum speed of the object, in pixels per second."),
 	new cr.Property(ept_float, 	"Rotation speed",	4,		"The speed at which the object rotates to face its direction, from 0 (none) to 100 (instant)."),
+	new cr.Property(ept_combo,	"Flip",				"None",			"Automatically flip the object's appearance. Only applies if 'Rotation speed' is 0.", "None|Horizontal"),
 	new cr.Property(ept_float, 	"Repulsion radius",	40,		"The distance at which objects will start pushing each other away."),
 	new cr.Property(ept_float, 	"Repulsion force",	0.8,	"The strength of the push-away force, from 0 to 1.")
 	];

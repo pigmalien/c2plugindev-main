@@ -57,13 +57,17 @@ cr.behaviors.MobsMovement = function(runtime)
 		// Load properties from edittime.js
 		this.isActive = (this.properties[0] === 0); // 0=Active, 1=Inactive
 		this.maxSpeed = this.properties[1];
-		this.rotationSpeed = this.properties[2];
-		this.repulsionRadius = this.properties[3];
-		this.repulsionForce = this.properties[4];
+		this.rotationSpeed = this.properties[2]; // 0=none
+		this.flipMode = this.properties[3];      // 0=None, 1=Horizontal
+		this.repulsionRadius = this.properties[4];
+		this.repulsionForce = this.properties[5];
 		
 		// object is sealed after this call, so make sure any properties you'll ever need are created, e.g.
 		// This will be calculated once per tick for this instance
 		this.repulsionRadiusSq = this.repulsionRadius * this.repulsionRadius;
+
+		// For restoring width when flipping
+		this.lastKnownWidth = this.inst.width;
 	};
 	
 	behinstProto.onDestroy = function ()
@@ -132,9 +136,27 @@ cr.behaviors.MobsMovement = function(runtime)
 			this.inst.x += finalForceX * this.maxSpeed * dt;
 			this.inst.y += finalForceY * this.maxSpeed * dt;
 
-			// Smoothly rotate the mover to face its direction of travel.
-			var targetAngle = Math.atan2(finalForceY, finalForceX);
-			this.inst.angle = cr.anglelerp(this.inst.angle, targetAngle, this.rotationSpeed * dt);
+			// Update angle or flip based on properties
+			if (this.rotationSpeed > 0)
+			{
+				// Smoothly rotate the mover to face its direction of travel.
+				var targetAngle = Math.atan2(finalForceY, finalForceX);
+				this.inst.angle = cr.anglelerp(this.inst.angle, targetAngle, this.rotationSpeed * dt);
+			}
+			else if (this.flipMode === 1) // 1=Horizontal
+			{
+				// Store the object's actual width if it's not currently flipped
+				if (this.inst.width > 0)
+				{
+					this.lastKnownWidth = this.inst.width;
+				}
+				
+				// Flip based on horizontal direction (with a small threshold to prevent rapid flipping)
+				if (finalForceX < -0.01)
+					this.inst.width = -this.lastKnownWidth;
+				else if (finalForceX > 0.01)
+					this.inst.width = this.lastKnownWidth;
+			}
 
 			this.inst.set_bbox_changed();
 		}
