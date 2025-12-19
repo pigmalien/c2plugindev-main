@@ -73,7 +73,7 @@ cr.behaviors.SnakeChain = function(runtime)
 		
 		if (distMoved > 1) {
 			this.history.unshift({x: this.inst.x, y: this.inst.y, angle: this.inst.angle});
-			if (this.history.length > (this.segmentCount * 10)) // Cap history size
+			if (this.history.length > (this.segmentCount * (this.spacing + 10))) // Cap history size
 				this.history.pop();
 				
 			this.lastX = this.inst.x;
@@ -90,7 +90,18 @@ cr.behaviors.SnakeChain = function(runtime)
 			var currentInst = this.bodySegments[i];
 			
 			// Safety check: if segment destroyed externally
-			if (!currentInst) continue; 
+			var isDead = !currentInst || currentInst.dead || !currentInst.layer;
+			
+			// Double check with runtime lookup to ensure object really exists
+			if (!isDead && this.runtime.getObjectByUID && !this.runtime.getObjectByUID(currentInst.uid))
+				isDead = true;
+
+			if (isDead)
+			{
+				this.bodySegments.splice(i, 1);
+				i--;
+				continue;
+			}
 
 			var targetX, targetY, targetAngle;
 
@@ -220,6 +231,25 @@ cr.behaviors.SnakeChain = function(runtime)
 	Acts.prototype.DestroyChain = function ()
 	{
 		this.DestroyChain();
+	};
+
+	Acts.prototype.ReorganiseChain = function ()
+	{
+		for (var i = 0; i < this.bodySegments.length; i++)
+		{
+			var inst = this.bodySegments[i];
+			var isDead = !inst || inst.dead || !inst.layer;
+
+			// Double check with runtime lookup to ensure object really exists
+			if (!isDead && this.runtime.getObjectByUID && !this.runtime.getObjectByUID(inst.uid))
+				isDead = true;
+
+			if (isDead)
+			{
+				this.bodySegments.splice(i, 1);
+				i--;
+			}
+		}
 	};
 	
 	behaviorProto.acts = new Acts();
