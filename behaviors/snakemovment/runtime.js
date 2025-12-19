@@ -251,6 +251,36 @@ cr.behaviors.SnakeChain = function(runtime)
 			}
 		}
 	};
+
+	Acts.prototype.AddSegment = function ()
+	{
+		var bodyType = null;
+		for (var i in this.runtime.types)
+		{
+			if (this.runtime.types[i].name === this.bodyTypeName)
+			{
+				bodyType = this.runtime.types[i];
+				break;
+			}
+		}
+
+		if (!bodyType) return;
+
+		var prevInst = this.inst;
+		if (this.bodySegments.length > 0)
+			prevInst = this.bodySegments[this.bodySegments.length - 1];
+			
+		var newInst = this.runtime.createInstance(bodyType, this.inst.layer, prevInst.x, prevInst.y);
+		
+		if (newInst)
+		{
+			this.bodySegments.push(newInst);
+			newInst.angle = prevInst.angle;
+			newInst.set_bbox_changed();
+			
+			this.segmentCount++;
+		}
+	};
 	
 	behaviorProto.acts = new Acts();
 

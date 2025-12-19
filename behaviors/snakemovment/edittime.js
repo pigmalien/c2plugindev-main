@@ -24,6 +24,9 @@ AddAction(1, af_none, "Destroy chain", "Chain", "Destroy chain", "Destroys all b
 // ACT 2: Reorganise Chain
 AddAction(2, af_none, "Reorganise chain", "Chain", "Reorganise chain", "Remove destroyed segments and close gaps.", "ReorganiseChain");
 
+// ACT 3: Add Segment
+AddAction(3, af_none, "Add segment", "Chain", "Add segment", "Add a new segment to the end of the chain.", "AddSegment");
+
 
 ////////////////////////////////////////
 // Expressions
