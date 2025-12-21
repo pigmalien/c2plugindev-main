@@ -38,6 +38,7 @@ cr.behaviors.MobsMovement = function(runtime)
 
 		// This will hold the final movement vector for each mover instance.
 		this.forces = {}; // Using an object with UIDs as keys
+		this.obstacleTypes = [];
 	};
 
 	/////////////////////////////////////
@@ -68,7 +69,6 @@ cr.behaviors.MobsMovement = function(runtime)
 
 		// For restoring width when flipping
 		this.lastKnownWidth = this.inst.width;
-		this.obstacleTypes = [];
 	};
 	
 	behinstProto.onDestroy = function ()
@@ -134,8 +134,22 @@ cr.behaviors.MobsMovement = function(runtime)
 			var finalForceY = (force.y / forceMagnitude);
 
 			// Apply movement based on the final force, max speed, and delta-time.
+			var oldx = this.inst.x;
+			var oldy = this.inst.y;
+
 			this.inst.x += finalForceX * this.maxSpeed * dt;
+			this.inst.set_bbox_changed();
+			if (this.testObstacleOverlap()) {
+				this.inst.x = oldx;
+				this.inst.set_bbox_changed();
+			}
+
 			this.inst.y += finalForceY * this.maxSpeed * dt;
+			this.inst.set_bbox_changed();
+			if (this.testObstacleOverlap()) {
+				this.inst.y = oldy;
+				this.inst.set_bbox_changed();
+			}
 
 			// Update angle or flip based on properties
 			if (this.rotationSpeed > 0)
@@ -226,8 +240,8 @@ cr.behaviors.MobsMovement = function(runtime)
 			}
 
 			// C. Obstacle Avoidance
-			for (var k = 0; k < behA.obstacleTypes.length; k++) {
-				var obstacleType = behA.obstacleTypes[k];
+			for (var k = 0; k < this.type.obstacleTypes.length; k++) {
+				var obstacleType = this.type.obstacleTypes[k];
 				var obstacles = obstacleType.instances;
 				for (var m = 0; m < obstacles.length; m++) {
 					var obstacle = obstacles[m];
@@ -247,6 +261,19 @@ cr.behaviors.MobsMovement = function(runtime)
 
 			forces[moverA.uid] = { x: totalForceX, y: totalForceY };
 		}
+	};
+
+	behinstProto.testObstacleOverlap = function()
+	{
+		for (var k = 0; k < this.type.obstacleTypes.length; k++) {
+			var obstacleType = this.type.obstacleTypes[k];
+			var obstacles = obstacleType.instances;
+			for (var m = 0; m < obstacles.length; m++) {
+				if (this.runtime.testOverlap(this.inst, obstacles[m]))
+					return true;
+			}
+		}
+		return false;
 	};
 	
 	// The comments around these functions ensure they are removed when exporting, since the
@@ -347,13 +374,13 @@ cr.behaviors.MobsMovement = function(runtime)
 	Acts.prototype.AddObstacle = function (obj)
 	{
 		if (!obj) return;
-		if (this.obstacleTypes.indexOf(obj) === -1)
-			this.obstacleTypes.push(obj);
+		if (this.type.obstacleTypes.indexOf(obj) === -1)
+			this.type.obstacleTypes.push(obj);
 	};
 
 	Acts.prototype.ClearObstacles = function ()
 	{
-		this.obstacleTypes.length = 0;
+		this.type.obstacleTypes.length = 0;
 	};
 	
 	// ... other actions here ...
