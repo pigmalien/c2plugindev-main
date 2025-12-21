@@ -84,6 +84,10 @@ cr.behaviors.SnakeChain = function(runtime)
 		if (this.bodySegments.length === 0) return;
 
 		var prevInst = this.inst; // Start with Head
+		
+		// Optimization: Keep track of history search position across segments
+		var historyIndex = 0;
+		var currentPathDist = 0;
 
 		for (var i = 0; i < this.bodySegments.length; i++)
 		{
@@ -133,24 +137,18 @@ cr.behaviors.SnakeChain = function(runtime)
 			else if (this.mode === 1) // History Mode
 			{
 				var target_dist = (i + 1) * this.spacing;
-				var accumulated_dist = 0;
-				var history_index = -1;
-
-				// Find the point in the history buffer that is target_dist px away
-				for (var j = 0; j < this.history.length - 1; ++j)
+				
+				// Advance history pointer until we cover the required distance
+				// Optimization: Resume from historyIndex instead of restarting at 0
+				while (historyIndex < this.history.length - 1 && currentPathDist < target_dist)
 				{
-					accumulated_dist += cr.distanceTo(this.history[j].x, this.history[j].y, this.history[j+1].x, this.history[j+1].y);
-					
-					if (accumulated_dist >= target_dist)
-					{
-						history_index = j + 1;
-						break;
-					}
+					currentPathDist += cr.distanceTo(this.history[historyIndex].x, this.history[historyIndex].y, this.history[historyIndex+1].x, this.history[historyIndex+1].y);
+					historyIndex++;
 				}
 
-				if (history_index !== -1)
+				if (currentPathDist >= target_dist)
 				{
-					var targetPoint = this.history[history_index];
+					var targetPoint = this.history[historyIndex];
 					targetX = targetPoint.x;
 					targetY = targetPoint.y;
 					targetAngle = targetPoint.angle;
@@ -180,6 +178,17 @@ cr.behaviors.SnakeChain = function(runtime)
 		this.bodySegments.length = 0;
 	};
 
+	// Helper to find object type by name
+	behaviorInstProto.GetBodyType = function(name)
+	{
+		for (var i in this.runtime.types)
+		{
+			if (this.runtime.types[i].name === name)
+				return this.runtime.types[i];
+		}
+		return null;
+	};
+
 	//////////////////////////////////////
 	// Actions
 	function Acts() {};
@@ -187,15 +196,7 @@ cr.behaviors.SnakeChain = function(runtime)
 	Acts.prototype.BuildChain = function ()
 	{
 		// 1. Find the Object Type from the name string
-		var bodyType = null;
-		for (var i in this.runtime.types)
-		{
-			if (this.runtime.types[i].name === this.bodyTypeName)
-			{
-				bodyType = this.runtime.types[i];
-				break;
-			}
-		}
+		var bodyType = this.GetBodyType(this.bodyTypeName);
 
 		if (!bodyType)
 		{
@@ -254,15 +255,7 @@ cr.behaviors.SnakeChain = function(runtime)
 
 	Acts.prototype.AddSegment = function ()
 	{
-		var bodyType = null;
-		for (var i in this.runtime.types)
-		{
-			if (this.runtime.types[i].name === this.bodyTypeName)
-			{
-				bodyType = this.runtime.types[i];
-				break;
-			}
-		}
+		var bodyType = this.GetBodyType(this.bodyTypeName);
 
 		if (!bodyType) return;
 

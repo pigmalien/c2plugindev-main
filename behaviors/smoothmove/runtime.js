@@ -58,6 +58,7 @@ cr.behaviors.SmoothMove = function(runtime)
 		this.deceleration = this.properties[4];
 		this.rotationSpeed = this.properties[5];
 		this.effectiveRadius = this.properties[6];
+		this.stopOnSolids = (this.properties[7] === 1); // 0=No, 1=Yes
 		
 		// object is sealed after this call, so make sure any properties you'll ever need are created, e.g.
 		this.velocity = { x: 0, y: 0 };
@@ -93,7 +94,8 @@ cr.behaviors.SmoothMove = function(runtime)
 			"hpt": this.hasPositionTarget,
 			"tx": this.targetX,
 			"ty": this.targetY,
-			"iat": false // No longer used, for savegame compatibility
+			"iat": false, // No longer used, for savegame compatibility
+			"sos": this.stopOnSolids
 		};
 	};
 	
@@ -113,6 +115,7 @@ cr.behaviors.SmoothMove = function(runtime)
 		this.hasPositionTarget = o["hpt"];
 		this.targetX = o["tx"];
 		this.targetY = o["ty"];
+		this.stopOnSolids = o["sos"];
 		// this.isAtTarget is no longer used
 		// note you MUST use double-quote syntax (e.g. o["property"]) to prevent
 		// Closure Compiler renaming and breaking the save format
@@ -196,9 +199,35 @@ cr.behaviors.SmoothMove = function(runtime)
 		// --- Apply Final Velocity to Position ---
 		if (vel.x !== 0 || vel.y !== 0)
 		{
-			inst.x += vel.x * dt;
-			inst.y += vel.y * dt;
-			inst.set_bbox_changed();
+			if (this.stopOnSolids)
+			{
+				var oldx = inst.x;
+				var oldy = inst.y;
+
+				// Move X and check for collision
+				inst.x += vel.x * dt;
+				inst.set_bbox_changed();
+				if (this.runtime.testOverlapSolid(inst)) {
+					inst.x = oldx;
+					vel.x = 0;
+					inst.set_bbox_changed();
+				}
+
+				// Move Y and check for collision
+				inst.y += vel.y * dt;
+				inst.set_bbox_changed();
+				if (this.runtime.testOverlapSolid(inst)) {
+					inst.y = oldy;
+					vel.y = 0;
+					inst.set_bbox_changed();
+				}
+			}
+			else
+			{
+				inst.x += vel.x * dt;
+				inst.y += vel.y * dt;
+				inst.set_bbox_changed();
+			}
 		}
 	};
 	
@@ -224,6 +253,7 @@ cr.behaviors.SmoothMove = function(runtime)
 				{"name": "Deceleration", "value": this.deceleration},
 				{"name": "Rotation speed", "value": this.rotationSpeed},
 				{"name": "Effective radius", "value": this.effectiveRadius},
+				{"name": "Stop on solids", "value": this.stopOnSolids},
 				{"name": "Target", "value": targetName, "readonly": true}
 			]
 		});
@@ -240,6 +270,7 @@ cr.behaviors.SmoothMove = function(runtime)
 			case "Deceleration": 	 this.deceleration = value; break;
 			case "Rotation speed": 	 this.rotationSpeed = value; break;
 			case "Effective radius": this.effectiveRadius = value; break;
+			case "Stop on solids":	 this.stopOnSolids = value; break;
 		}
 	};
 	/**END-PREVIEWONLY**/
@@ -285,6 +316,7 @@ cr.behaviors.SmoothMove = function(runtime)
 	Acts.prototype.SetDeceleration = function (d) { this.deceleration = d; };
 	Acts.prototype.SetRotationSpeed = function (r) { this.rotationSpeed = r; };
 	Acts.prototype.SetEffectiveRadius = function (r) { this.effectiveRadius = r; };
+	Acts.prototype.SetStopOnSolids = function (s) { this.stopOnSolids = (s === 1); };
 	
 	behaviorProto.acts = new Acts();
 

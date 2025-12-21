@@ -75,6 +75,10 @@ AddAction(6, af_none, "Set rotation speed", "Parameters", "Set rotation speed to
 AddNumberParam("Radius", "The new effective radius in pixels.");
 AddAction(7, af_none, "Set effective radius", "Parameters", "Set effective radius to {0}", "Set the distance at which speed scaling is maxed out.", "SetEffectiveRadius");
 
+AddComboParamOption("No");
+AddComboParamOption("Yes");
+AddComboParam("Stop on solids", "Enable or disable stopping on solids.");
+AddAction(2, af_none, "Set stop on solids", "Parameters", "Set stop on solids to <b>{0}</b>", "Enable or disable collision with solids.", "SetStopOnSolids");
 
 ////////////////////////////////////////
 // Expressions
@@ -106,7 +110,8 @@ var property_list = [
 	new cr.Property(ept_float, 	"Min speed",		20,		"Minimum speed when the object is close to the target."),
 	new cr.Property(ept_float, 	"Deceleration",		75,		"Rate of deceleration (friction) in pixels/sec^2."),
 	new cr.Property(ept_float, 	"Rotation speed",	2,		"How quickly the object rotates to face the target in 'Steering' mode (higher is faster)."),
-	new cr.Property(ept_float, 	"Effective radius",	300,	"The distance from the target at which speed scaling is maxed out.")
+	new cr.Property(ept_float, 	"Effective radius",	300,	"The distance from the target at which speed scaling is maxed out."),
+	new cr.Property(ept_combo,	"Stop on solids",	"No",	"Enable to stop when colliding with Solid objects.", "No|Yes")
 	];
 	
 // Called by IDE when a new behavior type is to be created
